@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Overdub Latency Lab</title>
+  <meta name="description" content="Throwaway prototype: can a phone record a new part while playing back an existing one, in time and without the playback bleeding in?" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <style>
+    :root {
+      --bg: #f7f4ef; --card: #fff; --ink: #1a1208; --muted: #7a6e60; --line: #e3ddd2;
+      --accent: #ef4444; --ok: #15803d; --bad: #b91c1c; --soft: #f0ebe0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #15110c; --card: #211b14; --ink: #f2ede4; --muted: #a89c8c; --line: #3a3127; --soft: #2a231b; --ok: #4ade80; --bad: #f87171; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
+    main { max-width: 680px; margin: 0 auto; padding: 16px 16px 64px; }
+    h1 { font-size: 22px; margin: 8px 0 4px; }
+    h2 { font-size: 18px; margin: 0 0 4px; }
+    p { margin: 6px 0; }
+    .muted, small { color: var(--muted); }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 14px 0; }
+    label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 4px; }
+    input[type=text], input[type=number], select { width: 100%; font: inherit; padding: 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+    .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
+    .check input { margin-top: 5px; }
+    button { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 12px 16px; background: var(--ink); color: var(--bg); cursor: pointer; }
+    button.primary { background: var(--accent); color: #fff; width: 100%; font-size: 17px; padding: 14px; }
+    button.secondary { background: var(--soft); color: var(--ink); }
+    button:disabled { opacity: .45; cursor: default; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .row > * { flex: 1 1 auto; }
+    .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 1.5em; }
+    .status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+    .big { font-size: 40px; font-weight: 800; line-height: 1.1; margin-top: 12px; }
+    .sub { color: var(--muted); font-size: 14px; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; margin: 12px 0 0; }
+    dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
+    ol { padding-left: 20px; margin: 6px 0; } li { margin: 4px 0; }
+    .warn { background: #fef3c7; color: #78350f; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
+    details { margin-top: 10px; font-size: 14px; }
+    table { border-collapse: collapse; font-size: 13px; width: 100%; }
+    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .scroll { overflow-x: auto; margin-top: 8px; }
+    .needs-ready, .needs-take { opacity: .45; pointer-events: none; }
+    body.ready .needs-ready, body.has-take .needs-take { opacity: 1; pointer-events: auto; }
+    input[type=range] { width: 100%; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Overdub Latency Lab</h1>
+  <p class="muted">A throwaway test for the StickyNotes overdub idea. Can this device record a new part while playing an existing one back, <b>in time</b>, and <b>without the playback leaking into the recording</b>? Nothing here is uploaded: results stay on this device until you copy or download them.</p>
+
+  <section>
+    <h2>1 · Setup</h2>
+    <label for="device">This device</label>
+    <input id="device" type="text" placeholder="e.g. iPhone 13, Pixel 7, MacBook Air" />
+
+    <label for="output">What you're listening on</label>
+    <select id="output">
+      <option>Phone/laptop speaker</option>
+      <option>Bluetooth headphones</option>
+      <option>AirPods</option>
+      <option>Wired headphones</option>
+      <option>USB-C / Lightning headphones</option>
+      <option>Other</option>
+    </select>
+
+    <label for="mic">Microphone</label>
+    <select id="mic"><option value="">Default mic</option></select>
+    <small>Pick the device's built-in mic where possible. Recording from a Bluetooth headset's mic switches it to call mode.</small>
+
+    <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation <small>(the StickyNotes app records with this off, because it cuts out instruments. Turn it on to see if it removes speaker bleed.)</small></span></label>
+
+    <div class="row"><button id="start" class="primary">Start audio</button></div>
+    <div id="setup-status" class="status"></div>
+    <div id="bt-mic-warning" class="warn" hidden>The mic in use looks like a Bluetooth headset mic. That switches the headphones to call mode (low-quality, mono) and changes the delay. Pick the built-in mic above if it's listed. On iPhone you often can't, so note it in your results.</div>
+    <dl id="info"></dl>
+  </section>
+
+  <section class="needs-ready">
+    <h2>2 · Test A: automatic delay meter</h2>
+    <p>Plays 8 short chirps and listens for them, to measure the delay from playing a sound to recording it. Run it 2–3 times per setup.</p>
+    <ol>
+      <li><b>Speaker:</b> phone flat on a table, volume about 70%.</li>
+      <li><b>Headphones (wired or Bluetooth), delay:</b> hold one earbud against the device's mic (usually the bottom edge), volume about 70%.</li>
+      <li><b>Headphones, leakage:</b> wear them normally. "Not heard" is the result you want.</li>
+    </ol>
+    <label class="check"><input id="compare-mr" type="checkbox" checked /> <span>Also measure with the app's current recorder (MediaRecorder) for comparison</span></label>
+    <div class="row"><button id="run-a" class="primary">Run Test A</button></div>
+    <div id="a-status" class="status"></div>
+    <div id="a-result"></div>
+  </section>
+
+  <section class="needs-ready">
+    <h2>3 · Test B: record over a track</h2>
+    <p>Plays a 24-second drum loop (80 BPM) while recording you. <b>Clap or tap on every beat</b> (or play an instrument). Then play both back together and judge whether it sounds in time.</p>
+    <div class="row">
+      <button id="use-drums" class="secondary">Use drum loop</button>
+      <label class="secondary" style="margin:0"><span class="muted" style="font-weight:400">or use your own clip:</span>
+        <input id="base-file" type="file" accept="audio/*" /></label>
+    </div>
+    <div class="row"><button id="record-b" class="primary">Record a take</button></div>
+    <div id="b-status" class="status"></div>
+    <p id="b-claps"></p>
+
+    <div class="needs-take">
+      <label for="correction">Timing correction (shifts your take earlier)</label>
+      <select id="correction"></select>
+      <input id="manual-ms" type="number" inputmode="numeric" placeholder="ms" hidden style="margin-top:8px" />
+      <label for="take-gain">Take volume</label>
+      <input id="take-gain" type="range" min="0" max="4" step="0.1" value="1.5" />
+      <div class="row">
+        <button id="play-mix">▶ Play together</button>
+        <button id="play-take" class="secondary">▶ Take only</button>
+        <button id="stop" class="secondary">■ Stop</button>
+      </div>
+      <p style="margin-top:14px"><b>How did it sound?</b> <small>(saved with the correction you picked)</small></p>
+      <div class="row">
+        <button class="secondary" data-verdict="In time">In time</button>
+        <button class="secondary" data-verdict="Slightly off">Slightly off</button>
+        <button class="secondary" data-verdict="Clearly off">Clearly off</button>
+      </div>
+      <div class="row">
+        <button id="dl-take" class="secondary">Download take (.wav)</button>
+        <button id="dl-mix" class="secondary">Download mix (.wav)</button>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Results</h2>
+    <p class="muted">Every test run is saved here on this device. Copy them into a spreadsheet to compare devices.</p>
+    <div class="row">
+      <button id="copy-log" class="secondary">Copy</button>
+      <button id="dl-log" class="secondary">Download CSV</button>
+      <button id="clear-log" class="secondary">Clear</button>
+    </div>
+    <div id="log-status" class="status"></div>
+    <div id="log"></div>
+  </section>
+</main>
+<script type="module" src="app.js"></script>
+</body>
+</html>
