@@ -50,6 +50,9 @@
     .needs-ready, .needs-take { opacity: .45; pointer-events: none; }
     body.ready .needs-ready, body.has-take .needs-take { opacity: 1; pointer-events: auto; }
     input[type=range] { width: 100%; }
+    .req { color: var(--muted); font-weight: 400; }
+    input.invalid { border-color: var(--bad); outline: 2px solid var(--bad); }
+    #device-help.bad { color: var(--bad); font-weight: 600; }
   </style>
 </head>
 <body>
@@ -59,8 +62,9 @@
 
   <section>
     <h2>1 · Setup</h2>
-    <label for="device">This device</label>
-    <input id="device" type="text" placeholder="e.g. iPhone 13, Pixel 7, MacBook Air" />
+    <label for="device">This device <span class="req">(required)</span></label>
+    <input id="device" type="text" required autocomplete="off" placeholder="e.g. iPhone 13, Pixel 7, MacBook Air" aria-describedby="device-help" />
+    <small id="device-help"></small>
 
     <label for="output">What you're listening on</label>
     <select id="output">

@@ -10,6 +10,11 @@ playing back an existing clip, so that
 2. the new part lines up **in time**, including over **Bluetooth** headphones
    (required for v1: most phones have no headphone jack)?
 
+Testers must fill in **This device** (make and model) before testing. Browsers hide
+the exact model for privacy: Android Chrome usually reports it (and it's pre-filled),
+iPhone/iPad/Mac only report the family, OS version and screen size. Whatever is
+detected is saved in every result row as **Detected**.
+
 Open the page on the device to test: **https://danieljlester.github.io/overdub-latency-lab/**
 (must be https for mic access). Results stay on the device until you copy or
 download them.

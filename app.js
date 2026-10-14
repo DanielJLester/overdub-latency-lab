@@ -34,6 +34,7 @@ const state = {
 // ── Audio setup ──────────────────────────────────────────────────────────────
 
 async function startAudio() {
+  if (!requireDevice()) return
   setStatus('setup-status', 'Starting…')
   await stopAudio()
   try {
@@ -180,6 +181,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 // ── Test A: automatic delay meter ───────────────────────────────────────────
 
 async function runLoopback() {
+  if (!requireDevice()) return
   const ctx = state.ctx
   await ctx.resume()
   const sr = ctx.sampleRate
@@ -317,6 +319,7 @@ async function loadBaseFile(file) {
 let recordingB = null
 
 async function recordTake() {
+  if (!requireDevice()) return
   const ctx = state.ctx
   await ctx.resume()
   const sr = ctx.sampleRate
@@ -472,6 +475,7 @@ function addLog(row) {
   state.log.push({
     time: new Date().toLocaleString(),
     device: $('device').value.trim() || '(unnamed)',
+    detected: detected.summary,
     browser: browserName(),
     output: $('output').value,
     mic: micLabel(),
@@ -483,7 +487,7 @@ function addLog(row) {
 }
 
 const LOG_COLUMNS = [
-  ['time', 'Time'], ['device', 'Device'], ['browser', 'Browser'], ['output', 'Output'], ['mic', 'Mic'],
+  ['time', 'Time'], ['device', 'Device'], ['detected', 'Detected'], ['browser', 'Browser'], ['output', 'Output'], ['mic', 'Mic'],
   ['echoCancel', 'Echo canc.'], ['test', 'Test'], ['found', 'Heard'], ['delayMs', 'Delay ms'],
   ['jitterMs', '± ms'], ['rangeMs', 'Range ms'], ['chirpDb', 'Chirp dB'], ['noiseDb', 'Noise dB'],
   ['reportedMs', 'Reported ms'], ['mediaRecorder', 'MediaRecorder ms'], ['mrGapMs', 'MR gap'], ['correction', 'Correction'],
@@ -505,6 +509,60 @@ function logAsText(sep) {
     return sep === ',' && /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s.replace(/\t/g, ' ')
   }
   return [LOG_COLUMNS.map(([, h]) => h).join(sep), ...state.log.map((r) => LOG_COLUMNS.map(([k]) => cell(r[k])).join(sep))].join('\n')
+}
+
+// ── Device detection ────────────────────────────────────────────────────────
+// Browsers hide the exact model for privacy. Chrome on Android usually still
+// reports it (via client hints); iPhone, iPad and Mac only give the family,
+// OS version and screen size. Whatever is found is saved in every result row
+// ("Detected"), and an exact model pre-fills "This device".
+const detected = { model: '', summary: '' }
+
+async function detectDevice() {
+  const ua = navigator.userAgent
+  let family = /iPad|Macintosh/.test(ua) && navigator.maxTouchPoints > 1 ? 'iPad'
+    : /iPhone/.test(ua) ? 'iPhone'
+    : /Android/.test(ua) ? 'Android'
+    : /Mac/.test(ua) ? 'Mac'
+    : /Windows/.test(ua) ? 'Windows'
+    : /CrOS/.test(ua) ? 'Chromebook'
+    : /Linux/.test(ua) ? 'Linux' : 'Unknown'
+  let os = ''
+  const ios = ua.match(/OS (\d+)[_.](\d+)/)
+  if ((family === 'iPhone' || family === 'iPad') && ios) os = `iOS ${ios[1]}.${ios[2]}`
+  const android = ua.match(/Android (\d+(\.\d+)?)/)
+  if (family === 'Android' && android) os = `Android ${android[1]}`
+
+  try {
+    const hints = await navigator.userAgentData?.getHighEntropyValues?.(['model', 'platformVersion'])
+    if (hints?.model) detected.model = hints.model
+    if (hints?.platformVersion) {
+      const major = hints.platformVersion.split('.')[0]
+      if (family === 'Android') os = `Android ${major}`
+      if (family === 'Mac') os = `macOS ${hints.platformVersion.split('.').slice(0, 2).join('.')}`
+      if (family === 'Windows') os = Number(major) >= 13 ? 'Windows 11' : 'Windows 10'
+    }
+  } catch {}
+
+  const screenSize = `${screen.width}×${screen.height} @${Math.round(devicePixelRatio * 100) / 100}x`
+  detected.summary = [family, detected.model, os, screenSize].filter(Boolean).join(' · ')
+}
+
+function requireDevice() {
+  const input = $('device')
+  const ok = input.value.trim().length > 0
+  input.classList.toggle('invalid', !ok)
+  const help = $('device-help')
+  if (ok) {
+    help.className = ''
+    help.textContent = detected.summary ? `Detected: ${detected.summary}` : ''
+  } else {
+    help.className = 'bad'
+    help.textContent = 'Enter the device (make and model) before testing, so results can be told apart.'
+    input.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    input.focus()
+  }
+  return ok
 }
 
 // "overdub-lab-results-iphone-13.csv": the device name tells the recipient
@@ -578,6 +636,18 @@ function wire() {
   }
   try { $('device').value = localStorage.getItem('overdub-lab-device') || '' } catch {}
   $('device').addEventListener('change', () => { try { localStorage.setItem('overdub-lab-device', $('device').value) } catch {} })
+  $('device').addEventListener('input', () => {
+    if ($('device').classList.contains('invalid') && $('device').value.trim()) requireDevice()
+  })
+  detectDevice().then(() => {
+    const input = $('device')
+    // Pre-fill only an exact model (Android); otherwise hint at what to add.
+    if (!input.value.trim() && detected.model) input.value = detected.model
+    const family = detected.summary.split(' · ')[0]
+    if (!detected.model && (family === 'iPhone' || family === 'iPad')) input.placeholder = `Which ${family}? e.g. ${family} 13`
+    if (!detected.model && family === 'Mac') input.placeholder = 'Which Mac? e.g. MacBook Air M2'
+    $('device-help').textContent = detected.summary ? `Detected: ${detected.summary}` : ''
+  })
 
   $('start').addEventListener('click', startAudio)
   $('ec').addEventListener('change', () => state.ctx && startAudio())
