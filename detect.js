@@ -164,14 +164,17 @@ export function detectOnsets(signal, sampleRate, { hop = 128, minDb = -45, riseR
 }
 
 // How late each onset landed after the beat it belongs to. `onsets` are in
-// base-clip frames (0 = base start). Each onset is matched to the beat it is
-// between 150 ms before and (beat − 150 ms) after, so beats must be longer
-// than the largest latency expected plus 150 ms.
-export function offsetsFromBeats(onsets, beatFrames, sampleRate, { firstBeat = 0, lastBeat = Infinity } = {}) {
-  const early = Math.round(0.15 * sampleRate)
+// base-clip frames (0 = base start). Each onset is matched to the beat that
+// puts its offset within half a beat of `centerMs`. With no centre given, the
+// window is 150 ms early to (beat − 150 ms) late. Pass the measured device
+// delay as `centerMs` so long delays (e.g. 660 ms Bluetooth) don't wrap
+// round to the next beat and read as early.
+export function offsetsFromBeats(onsets, beatFrames, sampleRate, { firstBeat = 0, lastBeat = Infinity, centerMs } = {}) {
+  const beatMs = (beatFrames / sampleRate) * 1000
+  const windowStart = Math.round((((centerMs ?? beatMs / 2 - 150) - beatMs / 2) / 1000) * sampleRate)
   const out = []
   for (const r of onsets) {
-    const k = Math.floor((r + early) / beatFrames)
+    const k = Math.floor((r - windowStart) / beatFrames)
     if (k < firstBeat || k > lastBeat) continue
     out.push(((r - k * beatFrames) / sampleRate) * 1000)
   }

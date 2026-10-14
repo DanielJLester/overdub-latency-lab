@@ -71,6 +71,25 @@ for (const [label, opts] of [
   check('claps: 32 onsets, median ≈ 70 ms', on.length === 32 && Math.abs(s.median - 70) < 8, `onsets=${on.length} median=${s.median.toFixed(1)} sd=${s.sd.toFixed(1)}`)
 }
 {
+  // Xiaomi round 1: ~660 ms Bluetooth delay
+  const claps = (beatMs, delayMs) => {
+    const beat = Math.round(sr * beatMs / 1000), r = rand(9), sig = new Float32Array(beat * 26)
+    for (let k = 1; k <= 24; k++) {
+      const at = k * beat + Math.round(sr * (delayMs + r() * 10) / 1000)
+      for (let j = 0; j < 2000 && at + j < sig.length; j++) sig[at + j] += r() * 0.6 * Math.exp(-j / 300)
+    }
+    return { on: detectOnsets(sig, sr), beat }
+  }
+  const at80 = claps(750, 660)
+  const wrapped = stats(offsetsFromBeats(at80.on, at80.beat, sr)).median
+  const anchored = stats(offsetsFromBeats(at80.on, at80.beat, sr, { centerMs: 660 })).median
+  check('80 BPM without anchor wraps 660 ms (the round-1 bug)', wrapped < 0, `median=${wrapped.toFixed(0)}`)
+  check('80 BPM anchored to Test A reads 660 ms', Math.abs(anchored - 660) < 10, `median=${anchored.toFixed(0)}`)
+  const at60 = claps(1000, 660)
+  const plain60 = stats(offsetsFromBeats(at60.on, at60.beat, sr)).median
+  check('60 BPM reads 660 ms even without an anchor', Math.abs(plain60 - 660) < 10, `median=${plain60.toFixed(0)}`)
+}
+{
   const blob = encodeWav(new Float32Array([0, 0.5, -1]), sr)
   check('wav size', blob.size === 44 + 6)
 }

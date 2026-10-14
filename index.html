@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Overdub Latency Lab</title>
-  <meta name="description" content="Throwaway prototype: can a phone record a new part while playing back an existing one, in time and without the playback bleeding in?" />
+  <meta name="description" content="Throwaway prototype: can a phone record a new part while playing back an existing one, and line it up in time?" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
@@ -53,12 +53,13 @@
     .req { color: var(--muted); font-weight: 400; }
     input.invalid { border-color: var(--bad); outline: 2px solid var(--bad); }
     #device-help.bad { color: var(--bad); font-weight: 600; }
+    button.chosen { background: var(--ink); color: var(--bg); }
   </style>
 </head>
 <body>
 <main>
   <h1>Overdub Latency Lab</h1>
-  <p class="muted">A throwaway test for the StickyNotes overdub idea. Can this device record a new part while playing an existing one back, <b>in time</b>, and <b>without the playback leaking into the recording</b>? Nothing here is uploaded: results stay on this device until you copy or download them.</p>
+  <p class="muted">A throwaway test for the StickyNotes overdub idea. Can this device record a new part while playing an existing one back, and line it up <b>in time</b>? Nothing here is uploaded: results stay on this device until you copy or download them.</p>
 
   <section>
     <h2>1 · Setup</h2>
@@ -80,7 +81,7 @@
     <select id="mic"><option value="">Default mic</option></select>
     <small>Pick the device's built-in mic where possible. Recording from a Bluetooth headset's mic switches it to call mode.</small>
 
-    <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation <small>(the StickyNotes app records with this off, because it cuts out instruments. Turn it on to see if it removes speaker bleed.)</small></span></label>
+    <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation <small>(the StickyNotes app records with this off, because it cuts out instruments. On the speaker, try a take with it on and off to compare.)</small></span></label>
 
     <div class="row"><button id="start" class="primary">Start audio</button></div>
     <div id="setup-status" class="status"></div>
@@ -93,8 +94,7 @@
     <p>Plays 8 short chirps and listens for them, to measure the delay from playing a sound to recording it. Run it 2–3 times per setup.</p>
     <ol>
       <li><b>Speaker:</b> phone flat on a table, volume about 70%.</li>
-      <li><b>Headphones (wired or Bluetooth), delay:</b> hold one earbud against the device's mic (usually the bottom edge), volume about 70%.</li>
-      <li><b>Headphones, leakage:</b> wear them normally. "Not heard" is the result you want.</li>
+      <li><b>Headphones (wired or Bluetooth):</b> hold one earbud against the device's mic (usually the bottom edge), volume about 70%.</li>
     </ol>
     <label class="check"><input id="compare-mr" type="checkbox" checked /> <span>Also measure with the app's current recorder (MediaRecorder) for comparison</span></label>
     <div class="row"><button id="run-a" class="primary">Run Test A</button></div>
@@ -104,7 +104,8 @@
 
   <section class="needs-ready">
     <h2>3 · Test B: record over a track</h2>
-    <p>Plays a 24-second drum loop (80 BPM) while recording you. <b>Clap or tap on every beat</b> (or play an instrument). Then play both back together and judge whether it sounds in time.</p>
+    <p>Plays a 24-second drum loop (60 BPM) while recording you. <b>Clap or tap on every beat</b> (or play an instrument). Then play both back together and judge whether it sounds in time. Run Test A first, so its delay can be used as the correction.</p>
+    <p class="muted">Rate each take once per correction. Tapping a different rating changes it. To compare corrections, pick another one and rate again.</p>
     <div class="row">
       <button id="use-drums" class="secondary">Use drum loop</button>
       <label class="secondary" style="margin:0"><span class="muted" style="font-weight:400">or use your own clip:</span>

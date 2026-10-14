@@ -11,8 +11,10 @@ import {
 const $ = (id) => document.getElementById(id)
 const fmt = (n, d = 0) => (n == null || !Number.isFinite(n) ? '–' : n.toFixed(d))
 
-const BPM = 80
-const BEATS = 32
+// 60 BPM: claps can be measured for delays up to 850 ms without a
+// measured delay to anchor to (Bluetooth on Android reached ~660 ms).
+const BPM = 60
+const BEATS = 24
 const MAX_LATENCY_MS = 900
 const BLUETOOTH_MIC = /bluetooth|airpods|headset|hands-?free|buds|\bbt\b/i
 // Declared before `state`, which loads the saved log as the module starts.
@@ -28,6 +30,8 @@ const state = {
   base: null, // AudioBuffer
   baseIsDrums: true,
   take: null, // { samples, rel } rel = take start minus base start, in frames
+  takeNumber: 0,
+  ratings: new Map(), // "take|correction" → index in log, so re-rating updates the row
   log: loadLog(),
 }
 
@@ -241,7 +245,7 @@ async function runLoopback() {
     })
     setStatus('a-status', found.length
       ? `Done. Heard ${found.length} of 8 chirps.`
-      : 'No chirps heard. That means no playback reached the mic (good, if you were testing bleed).', found.length ? 'ok' : '')
+      : silentWarning(samples) || 'No chirps heard. Turn the volume up; with headphones, hold an earbud right against the mic.', found.length ? 'ok' : '')
   } catch (err) {
     setStatus('a-status', `Test failed: ${err.message}`, 'bad')
   } finally {
@@ -348,23 +352,31 @@ async function recordTake() {
   const { samples, startFrame } = await stopCapture()
   const rel = startFrame - Math.round(t0 * sr) // take start relative to base start (negative)
   state.take = { samples, rel }
+  state.takeNumber += 1
+  markVerdict(null)
   $('record-b').disabled = false
 
   let clapMs = null
   if (state.baseIsDrums) {
     const onsets = detectOnsets(samples, sr).map((f) => f + rel)
-    const offsets = offsetsFromBeats(onsets, Math.round((60 / BPM) * sr), sr, { firstBeat: 1, lastBeat: BEATS - 1 })
+    // Centre on Test A's delay when there is one, so long delays can't wrap.
+    const centerMs = state.lastLoopbackMs ?? undefined
+    const offsets = offsetsFromBeats(onsets, Math.round((60 / BPM) * sr), sr, { firstBeat: 1, lastBeat: BEATS - 1, centerMs })
     const s = stats(offsets)
     if (s && s.n >= 8) clapMs = s.median
     $('b-claps').textContent = s && s.n >= 8
       ? `Your claps landed ${fmt(s.median)} ms after the beat (median of ${s.n}, spread ±${fmt(s.sd)} ms). That's the device delay plus your own timing.`
       : `Only ${s?.n ?? 0} claps detected. Clap louder, on every beat, to measure delay this way.`
+    if ($('output').value.includes('speaker')) {
+      $('b-claps').textContent += ' On the speaker the drums are recorded too, so this mostly measures the device delay.'
+    }
   } else {
     $('b-claps').textContent = ''
   }
   state.clapMs = clapMs
   renderCorrections()
-  setStatus('b-status', 'Take recorded. Play it back below.', 'ok')
+  const silent = silentWarning(samples)
+  setStatus('b-status', silent || `Take ${state.takeNumber} recorded. Play it back below.`, silent ? 'bad' : 'ok')
   document.body.classList.add('has-take')
 }
 
@@ -450,15 +462,46 @@ function mixdown() {
   return out
 }
 
+// One rating per take and correction: tapping again changes it instead of
+// adding another row.
 function rateTake(verdict) {
   if (!state.take) return
-  addLog({
-    test: 'B musician',
-    correction: `${$('correction').selectedOptions[0].textContent.split(' (')[0]} (${fmt(correctionMs(), 0)} ms)`,
-    clapsMs: state.clapMs != null ? fmt(state.clapMs, 0) : '',
-    verdict,
+  const correction = `${$('correction').selectedOptions[0].textContent.split(' (')[0]} (${fmt(correctionMs(), 0)} ms)`
+  const key = `${state.takeNumber}|${correction}`
+  const existing = state.ratings.get(key)
+  if (existing != null && state.log[existing]) {
+    state.log[existing].verdict = verdict
+    saveLog()
+    renderLog()
+    setStatus('b-status', `Changed take ${state.takeNumber} with ${correction} to "${verdict}".`, 'ok')
+  } else {
+    addLog({
+      test: 'B musician',
+      take: `Take ${state.takeNumber}`,
+      correction,
+      clapsMs: state.clapMs != null ? fmt(state.clapMs, 0) : '',
+      verdict,
+    })
+    state.ratings.set(key, state.log.length - 1)
+    setStatus('b-status', `Saved take ${state.takeNumber} with ${correction}: "${verdict}". Try another correction, or record a new take.`, 'ok')
+  }
+  markVerdict(verdict)
+}
+
+function markVerdict(verdict) {
+  document.querySelectorAll('[data-verdict]').forEach((b) => {
+    const on = b.dataset.verdict === verdict
+    b.classList.toggle('chosen', on)
+    b.setAttribute('aria-pressed', on ? 'true' : 'false')
   })
-  setStatus('b-status', `Saved: "${verdict}".`, 'ok')
+}
+
+// The Xiaomi test once recorded pure digital silence; say so instead of
+// reporting "nothing heard".
+function silentWarning(samples) {
+  return rmsDb(samples) < -100
+    ? "The mic recorded complete silence. Check the mic isn't muted or taken by another app, pick the built-in mic above, then press Start audio again."
+    : ''
 }
 
 // ── Results log ─────────────────────────────────────────────────────────────
@@ -488,7 +531,7 @@ function addLog(row) {
 
 const LOG_COLUMNS = [
   ['time', 'Time'], ['device', 'Device'], ['detected', 'Detected'], ['browser', 'Browser'], ['output', 'Output'], ['mic', 'Mic'],
-  ['echoCancel', 'Echo canc.'], ['test', 'Test'], ['found', 'Heard'], ['delayMs', 'Delay ms'],
+  ['echoCancel', 'Echo canc.'], ['test', 'Test'], ['take', 'Take'], ['found', 'Heard'], ['delayMs', 'Delay ms'],
   ['jitterMs', '± ms'], ['rangeMs', 'Range ms'], ['chirpDb', 'Chirp dB'], ['noiseDb', 'Noise dB'],
   ['reportedMs', 'Reported ms'], ['mediaRecorder', 'MediaRecorder ms'], ['mrGapMs', 'MR gap'], ['correction', 'Correction'],
   ['clapsMs', 'Claps ms'], ['verdict', 'Verdict'],
@@ -659,7 +702,12 @@ function wire() {
   $('play-mix').addEventListener('click', () => playMix())
   $('play-take').addEventListener('click', () => playMix({ withBase: false }))
   $('stop').addEventListener('click', stopPlayback)
-  $('correction').addEventListener('change', syncManual)
+  $('correction').addEventListener('change', () => {
+    syncManual()
+    const key = `${state.takeNumber}|${$('correction').selectedOptions[0].textContent.split(' (')[0]} (${fmt(correctionMs(), 0)} ms)`
+    const idx = state.ratings.get(key)
+    markVerdict(idx != null ? state.log[idx]?.verdict : null)
+  })
   $('dl-take').addEventListener('click', () => state.take && download(encodeWav(state.take.samples, state.ctx.sampleRate), 'overdub-take.wav'))
   $('dl-mix').addEventListener('click', () => state.take && download(encodeWav(mixdown(), state.ctx.sampleRate), 'overdub-mix.wav'))
   document.querySelectorAll('[data-verdict]').forEach((b) => b.addEventListener('click', () => rateTake(b.dataset.verdict)))

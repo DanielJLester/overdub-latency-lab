@@ -4,11 +4,11 @@ A **throwaway** feasibility prototype for the StickyNotes "overdub" feature. It 
 deliberately separate from the StickyNotes app; nothing here is meant to be reused.
 
 **Question it answers:** can a phone (or laptop) browser record a new part while
-playing back an existing clip, so that
+playing back an existing clip, so that the new part lines up **in time**, including
+over **Bluetooth** headphones (required for v1: most phones have no headphone jack)?
 
-1. the playback does **not** leak into the new recording, and
-2. the new part lines up **in time**, including over **Bluetooth** headphones
-   (required for v1: most phones have no headphone jack)?
+Round 1 also checked that playback doesn't leak into the recording through worn
+headphones (it doesn't), so that test has been removed.
 
 Testers must fill in **This device** (make and model) before testing. Browsers hide
 the exact model for privacy: Android Chrome usually reports it (and it's pre-filled),
@@ -22,12 +22,11 @@ download them.
 ## What it measures
 
 **Test A, automatic delay meter.** Plays 8 short chirps and finds them in the mic
-recording. Reports the delay (median), how much it varies between chirps, how loud
-the playback was in the recording (leakage), and what the browser *claims* the
-delay is. It also runs the app's current recorder (MediaRecorder) alongside, to
+recording. Reports the delay (median), how much it varies between chirps, and what
+the browser *claims* the delay is. It also runs the app's current recorder (MediaRecorder) alongside, to
 show whether its timing is predictable.
 
-**Test B, record over a track.** Plays a 24-second, 80 BPM drum loop while you clap
+**Test B, record over a track.** Plays a 24-second, 60 BPM drum loop while you clap
 on every beat (or play along). It measures how late the claps landed, then plays
 your take back with the base, with a choice of timing corrections. You rate whether
 it sounded in time. Downloads: the raw take and the mix, as WAV.
@@ -39,13 +38,17 @@ so the only delay left is the device's own, which a real app can correct for.
 
 For each device × output, with the device's built-in mic selected where possible:
 
-| Output | Test A (×3) | Test A, leakage | Test B |
-| --- | --- | --- | --- |
-| Speaker, echo cancellation off | phone flat, 70% volume | — | clap along |
-| Speaker, echo cancellation on | same | — | play an instrument: does it cut out? |
-| Bluetooth headphones | earbud held against the mic | worn normally | clap along |
-| AirPods | earbud held against the mic | worn normally | clap along |
-| Wired / USB-C (if available) | earbud held against the mic | worn normally | clap along |
+| Output | Test A (×3) | Test B |
+| --- | --- | --- |
+| Speaker, echo cancellation off | phone flat, 70% volume | clap along |
+| Speaker, echo cancellation on | same | play an instrument: does it cut out? |
+| Bluetooth headphones | earbud held against the mic | clap along |
+| AirPods | earbud held against the mic | clap along |
+| Wired / USB-C (if available) | earbud held against the mic | clap along |
+
+Leakage with headphones worn was tested in round 1 and found none, so it's no
+longer part of the test. Rate each Test B take once per correction (the
+**Take** column groups them).
 
 Devices worth covering: an iPhone in Safari **and** added to the home screen, an
 Android phone in Chrome, a laptop in Chrome and Safari.
@@ -60,7 +63,6 @@ showing the headset's mic.
 | --- | --- |
 | Delay varies between chirps/runs (Test A "±") | under ~10 ms |
 | Timing after correction (Test B) | rated "In time" |
-| Leakage with headphones worn (Test A) | "not heard" |
 | Browser-reported delay vs measured | close enough to skip calibration? (nice to have) |
 
 A **large but steady** delay (e.g. Bluetooth at 250 ms ± 5 ms) is fine: the app
