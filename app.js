@@ -15,6 +15,8 @@ const BPM = 80
 const BEATS = 32
 const MAX_LATENCY_MS = 900
 const BLUETOOTH_MIC = /bluetooth|airpods|headset|hands-?free|buds|\bbt\b/i
+// Declared before `state`, which loads the saved log as the module starts.
+const LOG_KEY = 'overdub-lab-log-v1'
 
 const state = {
   ctx: null,
@@ -458,8 +460,6 @@ function rateTake(verdict) {
 
 // ── Results log ─────────────────────────────────────────────────────────────
 
-const LOG_KEY = 'overdub-lab-log-v1'
-
 function loadLog() {
   try { return JSON.parse(localStorage.getItem(LOG_KEY)) || [] } catch { return [] }
 }
@@ -505,6 +505,42 @@ function logAsText(sep) {
     return sep === ',' && /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s.replace(/\t/g, ' ')
   }
   return [LOG_COLUMNS.map(([, h]) => h).join(sep), ...state.log.map((r) => LOG_COLUMNS.map(([k]) => cell(r[k])).join(sep))].join('\n')
+}
+
+// "overdub-lab-results-iphone-13.csv": the device name tells the recipient
+// whose results they are.
+function resultsFileName() {
+  const device = ($('device').value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return `overdub-lab-results${device ? '-' + device : ''}.csv`
+}
+
+function canShareFiles() {
+  try {
+    return !!navigator.canShare?.({ files: [new File([''], 'test.csv', { type: 'text/csv' })] })
+  } catch {
+    return false
+  }
+}
+
+// Opens the device's share sheet with the results attached as a CSV file.
+async function shareLog() {
+  if (!state.log.length) {
+    setStatus('log-status', 'No results to share yet.', 'bad')
+    return
+  }
+  const file = new File([logAsText(',')], resultsFileName(), { type: 'text/csv' })
+  const device = $('device').value.trim()
+  try {
+    await navigator.share({
+      files: [file],
+      title: 'Overdub lab results',
+      text: `Overdub lab results${device ? ` from ${device}` : ''} (${state.log.length} run${state.log.length === 1 ? "" : "s"})`,
+    })
+    setStatus('log-status', 'Shared.', 'ok')
+  } catch (err) {
+    if (err.name === 'AbortError') return // closed the share sheet
+    setStatus('log-status', "Couldn't share; use Download CSV instead.", 'bad')
+  }
 }
 
 function download(blob, name) {
@@ -560,7 +596,9 @@ function wire() {
   $('copy-log').addEventListener('click', async () => {
     try { await navigator.clipboard.writeText(logAsText('\t')); setStatus('log-status', 'Copied. Paste into a spreadsheet.', 'ok') } catch { setStatus('log-status', "Couldn't copy; use Download CSV.", 'bad') }
   })
-  $('dl-log').addEventListener('click', () => download(new Blob([logAsText(',')], { type: 'text/csv' }), 'overdub-lab-results.csv'))
+  $('dl-log').addEventListener('click', () => download(new Blob([logAsText(',')], { type: 'text/csv' }), resultsFileName()))
+  if (canShareFiles()) $('share-log').hidden = false
+  $('share-log').addEventListener('click', shareLog)
   $('clear-log').addEventListener('click', () => {
     if (confirm('Clear all saved results on this device?')) { state.log = []; saveLog(); renderLog() }
   })
