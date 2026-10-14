@@ -93,11 +93,17 @@ export function rmsDb(signal, from = 0, to = signal.length) {
 // Looks for each expected chirp in the recording. `expected` are the frames
 // (in recording coordinates) at which each chirp was *sent*; it is searched
 // for from `minLatencyMs` to `maxLatencyMs` after. Keep that window shorter
-// than the gap between chirps, or a neighbouring chirp can match. Returns one
-// result per chirp, with `latencyMs` set when found with at least `minScore`.
-export function measureLatency(recording, template, expected, sampleRate, { minLatencyMs = -20, maxLatencyMs = 800, minScore = 0.3 } = {}) {
+// than the gap between chirps, or a neighbouring chirp can match.
+//
+// A chirp only counts when it matches the template (`minScore`) AND is
+// clearly louder than the background: 15 dB above the noise before the first
+// chirp, and never quieter than `minLevelDb`. Without the level check, a
+// near-silent recording (e.g. compressed silence) can match by shape alone.
+export function measureLatency(recording, template, expected, sampleRate, { minLatencyMs = -20, maxLatencyMs = 800, minScore = 0.3, minLevelDb = -60 } = {}) {
   const squares = prefixSquares(recording)
   const ms = (f) => (f / sampleRate) * 1000
+  const quietEnd = Math.min(...expected) + (Math.min(minLatencyMs, 0) * sampleRate) / 1000
+  const floorDb = Math.max(rmsDb(recording, 0, quietEnd) + 15, minLevelDb)
   return expected.map((sentAt) => {
     const hit = findTemplate(
       recording,
@@ -108,7 +114,7 @@ export function measureLatency(recording, template, expected, sampleRate, { minL
     )
     if (!hit) return { found: false, score: 0 }
     return {
-      found: hit.score >= minScore,
+      found: hit.score >= minScore && hit.levelDb >= floorDb,
       score: hit.score,
       levelDb: hit.levelDb,
       latencyMs: ms(hit.frame - sentAt),

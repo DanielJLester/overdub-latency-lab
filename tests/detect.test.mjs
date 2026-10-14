@@ -45,6 +45,19 @@ for (const [label, opts] of [
   check('no bleed → nothing found', res.every((x) => !x.found), `max score=${Math.max(...res.map((x) => x.score)).toFixed(2)}`)
 }
 {
+  // near-silence that happens to match by shape (e.g. compressed silence):
+  // a perfect-shape chirp at -75 dBFS must not count as "heard"
+  const { rec, expected, chirp } = loop({ delayMs: 50, gain: 0.0002, noise: 0 })
+  const res = measureLatency(rec, chirp, expected, sr)
+  check('near-silent match is not "heard"', res.every((x) => !x.found), `score=${res[0].score.toFixed(2)} level=${res[0].levelDb.toFixed(0)} dB`)
+}
+{
+  // a real but quiet leak well above the noise still counts
+  const { rec, expected, chirp } = loop({ delayMs: 50, gain: 0.01, noise: 0.0003 })
+  const res = measureLatency(rec, chirp, expected, sr)
+  check('quiet real leak (-42 dB over -70 dB noise) is heard', res.every((x) => x.found), `level=${res[0].levelDb.toFixed(0)} dB`)
+}
+{
   // claps 70 ms late on an 80 BPM grid, human spread ±15 ms
   const beat = Math.round(sr * 0.75), r = rand(3), sig = new Float32Array(beat * 34)
   for (let i = 0; i < sig.length; i++) sig[i] = r() * 0.003
