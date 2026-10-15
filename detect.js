@@ -196,3 +196,74 @@ export function encodeWav(samples, sampleRate) {
   }
   return new Blob([buffer], { type: 'audio/wav' })
 }
+
+// Onset strength: how much the level jumps in each hop (rises only). Peaks
+// where notes, claps or drum hits start; flat during sustained sound.
+export function onsetEnvelope(signal, hop = 256) {
+  const n = Math.floor(signal.length / hop)
+  const env = new Float32Array(n)
+  let prev = 0
+  for (let f = 0; f < n; f++) {
+    let s = 0
+    for (let i = f * hop; i < (f + 1) * hop; i++) s += signal[i] * signal[i]
+    const e = Math.sqrt(s / hop)
+    env[f] = Math.max(0, e - prev)
+    prev = e
+  }
+  return env
+}
+
+// Auto-align: estimates how late a take is by lining up where things start in
+// the take with where they start in the base. `takeOffsetFrames` is where the
+// take's first sample sits in the base's timeline. Returns the delay in ms,
+// how many notes the take has, the share of them that land on the base's
+// notes once shifted, and whether that's enough to trust. Works on rhythmic
+// parts; sustained or free-time parts come back unreliable.
+export function estimateAlignment(base, take, takeOffsetFrames, sampleRate, { minMs = -100, maxMs = 950, hop = 256 } = {}) {
+  const b = onsetEnvelope(base, hop)
+  const t = onsetEnvelope(take, hop)
+  const rel = Math.round(takeOffsetFrames / hop)
+  const lo = Math.floor(((minMs / 1000) * sampleRate) / hop)
+  const hi = Math.ceil(((maxMs / 1000) * sampleRate) / hop)
+  const scores = []
+  for (let lag = lo; lag <= hi; lag++) {
+    let s = 0
+    for (let p = 0; p < b.length; p++) {
+      const q = p + lag - rel
+      if (q >= 0 && q < t.length) s += b[p] * t[q]
+    }
+    scores.push(s)
+  }
+  let best = 0
+  for (let i = 1; i < scores.length; i++) if (scores[i] > scores[best]) best = i
+  // Parabolic refinement between neighbouring lags.
+  let frac = 0
+  if (best > 0 && best < scores.length - 1) {
+    const [a, c, d] = [scores[best - 1], scores[best], scores[best + 1]]
+    const denom = a - 2 * c + d
+    if (denom !== 0) frac = Math.max(-0.5, Math.min(0.5, (0.5 * (a - d)) / denom))
+  }
+  const ms = (((lo + best + frac) * hop) / sampleRate) * 1000
+
+  // Trust it only if most of the take's notes land on the base's once
+  // shifted. A single sustained note can match one drum hit by chance.
+  const baseOnsets = detectOnsets(base, sampleRate)
+  const takeOnsets = detectOnsets(take, sampleRate)
+    .map((f) => f + takeOffsetFrames - (ms / 1000) * sampleRate)
+    .filter((f) => f >= 0 && f < base.length)
+  const tolerance = 0.04 * sampleRate
+  let matched = 0
+  let j = 0
+  for (const f of takeOnsets) {
+    while (j < baseOnsets.length - 1 && baseOnsets[j + 1] <= f) j++
+    const near = Math.min(Math.abs(f - baseOnsets[j]), j + 1 < baseOnsets.length ? Math.abs(baseOnsets[j + 1] - f) : Infinity)
+    if (near <= tolerance) matched++
+  }
+  const matchRate = takeOnsets.length ? matched / takeOnsets.length : 0
+  return {
+    ms,
+    notes: takeOnsets.length,
+    matchRate,
+    reliable: takeOnsets.length >= 8 && matchRate >= 0.5,
+  }
+}

@@ -1,4 +1,4 @@
-import { makeChirpTrain, measureLatency, stats, detectOnsets, offsetsFromBeats, encodeWav } from '../detect.js'
+import { makeChirpTrain, measureLatency, stats, detectOnsets, offsetsFromBeats, encodeWav, estimateAlignment } from '../detect.js'
 const sr = 48000
 let fails = 0
 const check = (name, ok, info = '') => { console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${info}`); if (!ok) fails++ }
@@ -88,6 +88,37 @@ for (const [label, opts] of [
   const at60 = claps(1000, 660)
   const plain60 = stats(offsetsFromBeats(at60.on, at60.beat, sr)).median
   check('60 BPM reads 660 ms even without an anchor', Math.abs(plain60 - 660) < 10, `median=${plain60.toFixed(0)}`)
+}
+{
+  // Auto-align: a drum-ish base and a take that hits the beats L ms late.
+  const beat = sr, len = sr * 24, r = rand(11)
+  const base = new Float32Array(len)
+  for (let k = 0; k < 24; k++) {
+    for (let j = 0; j < 6000; j++) base[k * beat + j] += Math.sin(j / 9) * 0.8 * Math.exp(-j / 1500)
+    for (let j = 0; j < 800; j++) base[k * beat + beat / 2 + j] += r() * 0.15 * Math.exp(-j / 200)
+  }
+  const takeFor = (L, { sustained = false } = {}) => {
+    const pre = Math.round(sr * 0.3) // the take starts recording 300 ms before the base
+    const take = new Float32Array(len + pre + sr)
+    for (let i = 0; i < take.length; i++) take[i] = r() * 0.004
+    if (sustained) {
+      for (let i = pre; i < take.length; i++) take[i] += Math.sin(i / 20) * 0.3
+    } else {
+      for (let k = 1; k < 24; k++) {
+        const at = pre + k * beat + Math.round(sr * (L + r() * 12) / 1000)
+        for (let j = 0; j < 3000 && at + j < take.length; j++) take[at + j] += r() * 0.5 * Math.exp(-j / 400)
+      }
+    }
+    return { take, offset: -pre }
+  }
+  for (const L of [25, 157, 216, 532, 660]) {
+    const { take, offset } = takeFor(L)
+    const est = estimateAlignment(base, take, offset, sr)
+    check(`auto-align finds ${L} ms`, Math.abs(est.ms - L) < 12 && est.reliable, `→ ${est.ms.toFixed(0)} ms, ${est.notes} notes, ${(est.matchRate * 100).toFixed(0)}% matched`)
+  }
+  const { take, offset } = takeFor(0, { sustained: true })
+  const est = estimateAlignment(base, take, offset, sr)
+  check('auto-align is unsure on a sustained part', !est.reliable, `${est.notes} notes, ${(est.matchRate * 100).toFixed(0)}% matched`)
 }
 {
   const blob = encodeWav(new Float32Array([0, 0.5, -1]), sr)

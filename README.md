@@ -7,8 +7,9 @@ deliberately separate from the StickyNotes app; nothing here is meant to be reus
 playing back an existing clip, so that the new part lines up **in time**, including
 over **Bluetooth** headphones (required for v1: most phones have no headphone jack)?
 
-Round 1 also checked that playback doesn't leak into the recording through worn
-headphones (it doesn't), so that test has been removed.
+Round 1 showed no leakage through worn headphones, and that Bluetooth delays are
+large (157–660 ms) and the browser's own estimate is wrong, so the app has to
+correct the delay. This version tests how well that can be done automatically.
 
 Testers must fill in **This device** (make and model) before testing. Browsers hide
 the exact model for privacy: Android Chrome usually reports it (and it's pre-filled),
@@ -19,61 +20,40 @@ Open the page on the device to test: **https://danieljlester.github.io/overdub-l
 (must be https for mic access). Results stay on the device until you copy or
 download them.
 
-## What it measures
+## How it works
 
-**Test A, automatic delay meter.** Plays 8 short chirps and finds them in the mic
-recording. Reports the delay (median), how much it varies between chirps, and what
-the browser *claims* the delay is. It also runs the app's current recorder (MediaRecorder) alongside, to
-show whether its timing is predictable.
+A guided test, about 3 minutes per run:
 
-**Test B, record over a track.** Plays a 24-second, 60 BPM drum loop while you clap
-on every beat (or play along). It measures how late the claps landed, then plays
-your take back with the base, with a choice of timing corrections. You rate whether
-it sounded in time. Downloads: the raw take and the mix, as WAV.
+1. **Your setup.** Device (required), what you're listening on, headphones model.
+2. **Sound check (automatic).** Plays chirps and listens for them. Needs the
+   device to hear itself: an earbud held against the mic, or the speaker.
+3. **Clap along.** Clap on 10 beeps at a fixed tempo (no song tempo needed).
+4. **Record a take.** Play, sing or clap over a drum beat or your own track.
+   **Auto-align** then estimates the delay from the take itself; it only counts
+   when at least 8 notes line up with the track (so not on sustained parts).
+5. **Line it up.** Move a slider until the take sits in time, by ear. That's the
+   reference: each automatic method is scored against it ("off by").
 
-The mic is recorded on the **same audio clock** as the playback (an AudioWorklet),
-so the only delay left is the device's own, which a real app can correct for.
+The mic is recorded on the same audio clock as the playback (AudioWorklet), and
+with headphones the device's built-in mic is preferred automatically.
 
-## Test plan
+## What we want to learn
 
-For each device × output, with the device's built-in mic selected where possible:
+- Which automatic method (sound check, claps, auto-align, browser estimate)
+  lands closest to what people line up by ear, per device and headphones.
+- Whether Bluetooth delay changes between sessions: run it, disconnect and
+  reconnect the headphones, then **Test again**.
 
-| Output | Test A (×3) | Test B |
-| --- | --- | --- |
-| Speaker, echo cancellation off | phone flat, 70% volume | clap along |
-| Speaker, echo cancellation on | same | play an instrument: does it cut out? |
-| Bluetooth headphones | earbud held against the mic | clap along |
-| AirPods | earbud held against the mic | clap along |
-| Wired / USB-C (if available) | earbud held against the mic | clap along |
-
-Leakage with headphones worn was tested in round 1 and found none, so it's no
-longer part of the test. Rate each Test B take once per correction (the
-**Take** column groups them).
-
-Devices worth covering: an iPhone in Safari **and** added to the home screen, an
-Android phone in Chrome, a laptop in Chrome and Safari.
-
-Note anything odd: playback getting quieter or switching to the earpiece when the
-mic starts, Bluetooth audio turning low-quality (headset/call mode), the mic label
-showing the headset's mic.
-
-## Pass bar (suggested)
-
-| Measure | Target |
-| --- | --- |
-| Delay varies between chirps/runs (Test A "±") | under ~10 ms |
-| Timing after correction (Test B) | rated "In time" |
-| Browser-reported delay vs measured | close enough to skip calibration? (nice to have) |
-
-A **large but steady** delay (e.g. Bluetooth at 250 ms ± 5 ms) is fine: the app
-can shift the take by that amount. An **unsteady** delay is the real blocker.
+Each run saves one row: setup, every method's delay, your alignment, how far
+each method was off, and whether you started from a suggestion and how much
+you then adjusted by ear.
 
 ## Files
 
 - `index.html`, `app.js`: the page.
 - `capture-worklet.js`: records the mic on the playback clock.
 - `detect.js`: chirp/clap detection and stats (pure functions).
-- `tests/detect.test.mjs`: `node tests/detect.test.mjs` checks the detection against
-  synthetic recordings with known delays, noise, echo and band-limiting.
+- `tests/detect.test.mjs`: `node tests/detect.test.mjs` checks chirp, clap and
+  auto-align detection against synthetic recordings with known delays.
 
 No build step and no dependencies. GitHub Pages serves the files as they are.

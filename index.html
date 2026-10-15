@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Overdub Latency Lab</title>
-  <meta name="description" content="Throwaway prototype: can a phone record a new part while playing back an existing one, and line it up in time?" />
+  <title>Overdub Timing Test</title>
+  <meta name="description" content="Throwaway prototype: how well does a new part line up when recorded over an existing one, and can that be fixed automatically?" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
@@ -19,138 +19,177 @@
     }
     * { box-sizing: border-box; }
     body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, sans-serif; }
-    main { max-width: 680px; margin: 0 auto; padding: 16px 16px 64px; }
-    h1 { font-size: 22px; margin: 8px 0 4px; }
-    h2 { font-size: 18px; margin: 0 0 4px; }
+    main { max-width: 560px; margin: 0 auto; padding: 16px 16px 64px; }
+    h1 { font-size: 22px; margin: 8px 0 2px; }
+    h2 { font-size: 20px; margin: 0 0 6px; }
     p { margin: 6px 0; }
     .muted, small { color: var(--muted); }
-    section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 14px 0; }
-    label { display: block; font-size: 14px; font-weight: 600; margin: 12px 0 4px; }
-    input[type=text], input[type=number], select { width: 100%; font: inherit; padding: 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px 16px; margin: 14px 0; }
+    .progress { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+    label, legend { display: block; font-size: 15px; font-weight: 600; margin: 16px 0 6px; padding: 0; }
+    fieldset { border: 0; margin: 0; padding: 0; }
+    input[type=text], select { width: 100%; font: inherit; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+    input.invalid { border-color: var(--bad); outline: 2px solid var(--bad); }
+    .field-help { font-size: 13px; color: var(--muted); margin-top: 4px; }
+    .field-help.bad { color: var(--bad); font-weight: 600; }
+    .choices { display: grid; gap: 8px; }
+    .choice { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; font-weight: 500; margin: 0; cursor: pointer; }
+    .choice:has(input:checked) { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+    .choice input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
+    details { margin-top: 14px; font-size: 15px; }
+    details summary { cursor: pointer; color: var(--muted); }
     .check { display: flex; gap: 8px; align-items: flex-start; font-weight: 400; }
     .check input { margin-top: 5px; }
-    button { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 12px 16px; background: var(--ink); color: var(--bg); cursor: pointer; }
+    button { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 12px 16px; background: var(--soft); color: var(--ink); cursor: pointer; }
     button.primary { background: var(--accent); color: #fff; width: 100%; font-size: 17px; padding: 14px; }
-    button.secondary { background: var(--soft); color: var(--ink); }
+    button.dark { background: var(--ink); color: var(--bg); }
+    button.link { background: none; padding: 6px 0; font-weight: 600; text-decoration: underline; color: var(--muted); }
     button:disabled { opacity: .45; cursor: default; }
-    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
     .row > * { flex: 1 1 auto; }
-    .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 1.5em; }
-    .status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
-    .big { font-size: 40px; font-weight: 800; line-height: 1.1; margin-top: 12px; }
-    .sub { color: var(--muted); font-size: 14px; }
-    dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; font-size: 14px; margin: 12px 0 0; }
-    dt { color: var(--muted); } dd { margin: 0; overflow-wrap: anywhere; }
-    ol { padding-left: 20px; margin: 6px 0; } li { margin: 4px 0; }
-    .warn { background: #fef3c7; color: #78350f; border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
-    details { margin-top: 10px; font-size: 14px; }
-    table { border-collapse: collapse; font-size: 13px; width: 100%; }
-    th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
-    .scroll { overflow-x: auto; margin-top: 8px; }
-    .needs-ready, .needs-take { opacity: .45; pointer-events: none; }
-    body.ready .needs-ready, body.has-take .needs-take { opacity: 1; pointer-events: auto; }
-    input[type=range] { width: 100%; }
-    .req { color: var(--muted); font-weight: 400; }
-    input.invalid { border-color: var(--bad); outline: 2px solid var(--bad); }
-    #device-help.bad { color: var(--bad); font-weight: 600; }
-    button.chosen { background: var(--ink); color: var(--bg); }
+    .status { margin-top: 12px; font-size: 15px; min-height: 1.5em; }
+    .status.ok { color: var(--ok); font-weight: 600; } .status.bad { color: var(--bad); font-weight: 600; }
+    .big { font-size: 34px; font-weight: 800; line-height: 1.1; margin-top: 8px; }
+    .slider-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .slider-row input[type=range] { flex: 1; }
+    .slider-row button { padding: 10px 12px; flex: none; }
+    .shift { font-size: 28px; font-weight: 800; text-align: center; margin-top: 10px; }
+    .chips { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .chips button { font-size: 14px; padding: 8px 12px; font-weight: 600; }
+    table { border-collapse: collapse; font-size: 14px; width: 100%; margin-top: 8px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    .scroll { overflow-x: auto; }
+    [hidden] { display: none !important; }
+    .file-input { font-size: 14px; margin-top: 6px; }
   </style>
 </head>
 <body>
 <main>
-  <h1>Overdub Latency Lab</h1>
-  <p class="muted">A throwaway test for the StickyNotes overdub idea. Can this device record a new part while playing an existing one back, and line it up <b>in time</b>? Nothing here is uploaded: results stay on this device until you copy or download them.</p>
+  <h1>Overdub timing test</h1>
+  <p class="muted">About 3 minutes. Checks how well a new part lines up when you record it over an existing one. Nothing is uploaded.</p>
 
-  <section>
-    <h2>1 · Setup</h2>
-    <label for="device">This device <span class="req">(required)</span></label>
-    <input id="device" type="text" required autocomplete="off" placeholder="e.g. iPhone 13, Pixel 7, MacBook Air" aria-describedby="device-help" />
-    <small id="device-help"></small>
+  <!-- 1 · Setup -->
+  <section class="card step" id="step-setup">
+    <div class="progress">Step 1 of 5</div>
+    <h2>Your setup</h2>
 
-    <label for="output">What you're listening on</label>
-    <select id="output">
-      <option>Phone/laptop speaker</option>
-      <option>Bluetooth headphones</option>
-      <option>AirPods</option>
-      <option>Wired headphones</option>
-      <option>USB-C / Lightning headphones</option>
-      <option>Other</option>
-    </select>
+    <label for="device">Device</label>
+    <input id="device" type="text" autocomplete="off" placeholder="e.g. iPhone 13" aria-describedby="device-help" />
+    <div id="device-help" class="field-help"></div>
 
-    <label for="mic">Microphone</label>
-    <select id="mic"><option value="">Default mic</option></select>
-    <small>Pick the device's built-in mic where possible. Recording from a Bluetooth headset's mic switches it to call mode.</small>
+    <fieldset>
+      <legend>Listening on</legend>
+      <div class="choices">
+        <label class="choice"><input type="radio" name="output" value="Bluetooth headphones" checked /> Bluetooth headphones</label>
+        <label class="choice"><input type="radio" name="output" value="Wired headphones" /> Wired headphones</label>
+        <label class="choice"><input type="radio" name="output" value="Speaker" /> Phone or laptop speaker</label>
+      </div>
+    </fieldset>
 
-    <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation <small>(the StickyNotes app records with this off, because it cuts out instruments. On the speaker, try a take with it on and off to compare.)</small></span></label>
+    <div id="headphones-field">
+      <label for="headphones">Headphones <span class="muted" style="font-weight:400">(optional)</span></label>
+      <input id="headphones" type="text" autocomplete="off" placeholder="e.g. AirPods Pro" />
+    </div>
 
-    <div class="row"><button id="start" class="primary">Start audio</button></div>
+    <details>
+      <summary>Advanced</summary>
+      <label for="mic">Microphone</label>
+      <select id="mic"><option value="">Automatic</option></select>
+      <div class="field-help">Automatic picks your device's built-in mic where it can.</div>
+      <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation</span></label>
+    </details>
+
+    <div class="row"><button id="start" class="primary">Start</button></div>
+    <div class="field-help">We'll ask to use your mic.</div>
     <div id="setup-status" class="status"></div>
-    <div id="bt-mic-warning" class="warn" hidden>The mic in use looks like a Bluetooth headset mic. That switches the headphones to call mode (low-quality, mono) and changes the delay. Pick the built-in mic above if it's listed. On iPhone you often can't, so note it in your results.</div>
-    <dl id="info"></dl>
   </section>
 
-  <section class="needs-ready">
-    <h2>2 · Test A: automatic delay meter</h2>
-    <p>Plays 8 short chirps and listens for them, to measure the delay from playing a sound to recording it. Run it 2–3 times per setup.</p>
-    <ol>
-      <li><b>Speaker:</b> phone flat on a table, volume about 70%.</li>
-      <li><b>Headphones (wired or Bluetooth):</b> hold one earbud against the device's mic (usually the bottom edge), volume about 70%.</li>
-    </ol>
-    <label class="check"><input id="compare-mr" type="checkbox" checked /> <span>Also measure with the app's current recorder (MediaRecorder) for comparison</span></label>
-    <div class="row"><button id="run-a" class="primary">Run Test A</button></div>
-    <div id="a-status" class="status"></div>
-    <div id="a-result"></div>
-  </section>
-
-  <section class="needs-ready">
-    <h2>3 · Test B: record over a track</h2>
-    <p>Plays a 24-second drum loop (60 BPM) while recording you. <b>Clap or tap on every beat</b> (or play an instrument). Then play both back together and judge whether it sounds in time. Run Test A first, so its delay can be used as the correction.</p>
-    <p class="muted">Rate each take once per correction. Tapping a different rating changes it. To compare corrections, pick another one and rate again.</p>
-    <div class="row">
-      <button id="use-drums" class="secondary">Use drum loop</button>
-      <label class="secondary" style="margin:0"><span class="muted" style="font-weight:400">or use your own clip:</span>
-        <input id="base-file" type="file" accept="audio/*" /></label>
-    </div>
-    <div class="row"><button id="record-b" class="primary">Record a take</button></div>
-    <div id="b-status" class="status"></div>
-    <p id="b-claps"></p>
-
-    <div class="needs-take">
-      <label for="correction">Timing correction (shifts your take earlier)</label>
-      <select id="correction"></select>
-      <input id="manual-ms" type="number" inputmode="numeric" placeholder="ms" hidden style="margin-top:8px" />
-      <label for="take-gain">Take volume</label>
-      <input id="take-gain" type="range" min="0" max="4" step="0.1" value="1.5" />
-      <div class="row">
-        <button id="play-mix">▶ Play together</button>
-        <button id="play-take" class="secondary">▶ Take only</button>
-        <button id="stop" class="secondary">■ Stop</button>
-      </div>
-      <p style="margin-top:14px"><b>How did it sound?</b> <small>(saved with the correction you picked)</small></p>
-      <div class="row">
-        <button class="secondary" data-verdict="In time">In time</button>
-        <button class="secondary" data-verdict="Slightly off">Slightly off</button>
-        <button class="secondary" data-verdict="Clearly off">Clearly off</button>
-      </div>
-      <div class="row">
-        <button id="dl-take" class="secondary">Download take (.wav)</button>
-        <button id="dl-mix" class="secondary">Download mix (.wav)</button>
-      </div>
+  <!-- 2 · Sound check -->
+  <section class="card step" id="step-check" hidden>
+    <div class="progress">Step 2 of 5</div>
+    <h2>Sound check</h2>
+    <p id="check-how"></p>
+    <div class="row"><button id="run-check" class="primary">Play sound check</button></div>
+    <div id="check-status" class="status"></div>
+    <div class="row" id="check-next" hidden>
+      <button id="check-again">Try again</button>
+      <button id="check-continue" class="dark">Next</button>
     </div>
   </section>
 
-  <section>
-    <h2>4 · Results</h2>
-    <p class="muted">Every test run is saved here on this device. Use <b>Share results</b> to send the file (WhatsApp, email…), or copy them into a spreadsheet.</p>
+  <!-- 3 · Clap along -->
+  <section class="card step" id="step-clap" hidden>
+    <div class="progress">Step 3 of 5</div>
+    <h2>Clap along</h2>
+    <p id="clap-how"></p>
+    <div class="row"><button id="run-clap" class="primary">Start beeps</button></div>
+    <div id="clap-status" class="status"></div>
+    <div class="row" id="clap-next" hidden>
+      <button id="clap-again">Try again</button>
+      <button id="clap-continue" class="dark">Next</button>
+    </div>
+    <button id="clap-skip" class="link">Skip this step</button>
+  </section>
+
+  <!-- 4 · Record -->
+  <section class="card step" id="step-record" hidden>
+    <div class="progress">Step 4 of 5</div>
+    <h2>Record a take</h2>
+    <p id="record-how">You'll hear a 24-second drum beat. Play, sing or clap along.</p>
+    <details id="own-track">
+      <summary>Use your own track instead</summary>
+      <input id="base-file" class="file-input" type="file" accept="audio/*" />
+      <div id="base-status" class="field-help"></div>
+    </details>
+    <div class="row"><button id="run-record" class="primary">Start recording</button></div>
+    <div id="record-status" class="status"></div>
+  </section>
+
+  <!-- 5 · Line it up -->
+  <section class="card step" id="step-align" hidden>
+    <div class="progress">Step 5 of 5</div>
+    <h2>Line it up</h2>
+    <p>Press play, then move the slider until your take sits in time.</p>
+    <div class="row"><button id="play" class="dark">▶ Play</button></div>
+    <div class="shift"><span id="shift-value">0</span> ms</div>
+    <div class="slider-row">
+      <button id="minus" aria-label="5 ms earlier">−5</button>
+      <input id="shift" type="range" min="0" max="1000" step="5" value="0" aria-label="Shift your take, in milliseconds" />
+      <button id="plus" aria-label="5 ms later">+5</button>
+    </div>
+    <p class="muted" style="margin-top:14px">Not sure? Try a suggestion:</p>
+    <div class="chips" id="suggestions"></div>
+    <div class="row" style="margin-top:18px"><button id="save" class="primary">It's in time. Save</button></div>
     <div class="row">
-      <button id="share-log" hidden>Share results</button>
-      <button id="copy-log" class="secondary">Copy</button>
-      <button id="dl-log" class="secondary">Download CSV</button>
-      <button id="clear-log" class="secondary">Clear</button>
+      <button id="cant">I can't get it in time</button>
+      <button id="rerecord">Record again</button>
+    </div>
+  </section>
+
+  <!-- Done -->
+  <section class="card step" id="step-done" hidden>
+    <h2>Saved. Thank you!</h2>
+    <p id="done-summary"></p>
+    <div class="scroll" id="done-table"></div>
+    <p class="muted" id="again-hint" style="margin-top:14px">Next, test again. Disconnect and reconnect your headphones first, so we can see if the delay changes.</p>
+    <div class="row">
+      <button id="test-again" class="dark">Test again</button>
+      <button id="change-setup">Change setup</button>
+    </div>
+    <div class="row"><button id="share-done" class="primary" hidden>Share results</button></div>
+  </section>
+
+  <!-- Results -->
+  <details class="card" id="results">
+    <summary><b>Your results</b> <span id="results-count" class="muted"></span></summary>
+    <div class="row">
+      <button id="share-log" hidden>Share</button>
+      <button id="dl-log">Download CSV</button>
+      <button id="clear-log">Clear</button>
     </div>
     <div id="log-status" class="status"></div>
     <div id="log"></div>
-  </section>
+  </details>
 </main>
 <script type="module" src="app.js"></script>
 </body>
