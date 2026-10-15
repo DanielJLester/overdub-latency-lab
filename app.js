@@ -98,7 +98,7 @@ async function start() {
     showStep('check')
   } catch (err) {
     setStatus('setup-status', err.name === 'NotAllowedError'
-      ? 'Mic access is off. Allow it in your browser settings, then press Start again.'
+      ? 'Mic access is off. Allow it in your browser settings, then press Next again.'
       : `Couldn't start audio: ${err.message || err.name}`, 'bad')
   }
 }
