@@ -20,6 +20,8 @@ const BEEPS = 10
 const MAX_LATENCY_MS = 900
 const BLUETOOTH_MIC = /bluetooth|airpods|headset|hands-?free|buds|\bbt\b/i
 const LOG_KEY = 'overdub-lab-runs-v2' // declared before `state`, which loads it
+const PLAY_LABEL = '<span class="ms" aria-hidden="true">play_arrow</span>Play'
+const STOP_LABEL = '<span class="ms" aria-hidden="true">stop</span>Stop'
 
 const state = {
   ctx: null,
@@ -38,6 +40,7 @@ const detected = { model: '', summary: '' }
 
 function showStep(name) {
   document.querySelectorAll('.step').forEach((s) => { s.hidden = s.id !== `step-${name}` })
+  $('intro').hidden = name !== 'setup'
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -88,6 +91,7 @@ async function start() {
       if (builtIn) await openAudio(builtIn.deviceId)
     }
     await listMics()
+    $('mic-help').textContent = `Recording with: ${micLabel() || 'your default mic'}.`
     setStatus('setup-status', '')
     newRun()
     prepareCheck()
@@ -137,7 +141,7 @@ async function listMics() {
   const select = $('mic')
   const chosen = select.value
   const devices = (await navigator.mediaDevices.enumerateDevices()).filter((d) => d.kind === 'audioinput')
-  select.innerHTML = '<option value="">Automatic</option>' +
+  select.innerHTML = '<option value="">Automatic (built-in mic)</option>' +
     devices.map((d) => `<option value="${escapeHtml(d.deviceId)}">${escapeHtml(d.label || 'Microphone')}</option>`).join('')
   select.value = devices.some((d) => d.deviceId === chosen) ? chosen : ''
 }
@@ -398,7 +402,7 @@ function prepareAlign() {
   $('suggestions').innerHTML = suggestions()
     .map(([label, ms]) => `<button data-ms="${Math.round(ms / 5) * 5}" data-label="${label}">${label} · ${fmt(ms)} ms</button>`).join('')
   state.run.suggestion = null
-  $('play').textContent = '▶ Play'
+  $('play').innerHTML = PLAY_LABEL
 }
 
 function setShift(ms) {
@@ -415,7 +419,7 @@ let playStartedAt = 0
 function stopPlayback() {
   state.playing.forEach((n) => { try { n.stop() } catch {} })
   state.playing = []
-  if ($('play')) $('play').textContent = '▶ Play'
+  if ($('play')) $('play').innerHTML = PLAY_LABEL
 }
 
 // Base from `fromSec`; the take shifted earlier by the slider.
@@ -441,7 +445,7 @@ function playMix(fromSec = 0) {
   else take.start(T - offsetInTake)
   state.playing = [base, take]
   playStartedAt = T - fromSec
-  $('play').textContent = '■ Stop'
+  $('play').innerHTML = STOP_LABEL
 }
 
 function playheadSec() {
@@ -703,6 +707,7 @@ function wire() {
   $('share-log').addEventListener('click', shareLog)
   $('share-done').addEventListener('click', shareLog)
   $('dl-log').addEventListener('click', () => download(new Blob([logAsCsv()], { type: 'text/csv' }), resultsFileName()))
+  $('dl-done').addEventListener('click', () => download(new Blob([logAsCsv()], { type: 'text/csv' }), resultsFileName()))
   $('clear-log').addEventListener('click', () => {
     if (confirm('Delete all saved results on this device?')) { state.log = []; saveLog(); renderLog() }
   })

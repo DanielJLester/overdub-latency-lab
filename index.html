@@ -9,6 +9,8 @@
   <link rel="icon" href="icon.svg" />
   <link rel="apple-touch-icon" href="icon.svg" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..24,400,0,0&display=block" />
   <style>
     :root {
       --bg: #f7f4ef; --card: #fff; --ink: #1a1208; --muted: #7a6e60; --line: #e3ddd2;
@@ -61,53 +63,66 @@
     .scroll { overflow-x: auto; }
     [hidden] { display: none !important; }
     .file-input { font-size: 14px; margin-top: 6px; }
+    .ms { font-family: 'Material Symbols Outlined'; font-weight: normal; font-style: normal; font-size: 20px; line-height: 1;
+          display: inline-block; white-space: nowrap; direction: ltr; -webkit-font-smoothing: antialiased; vertical-align: -4px; flex: none; }
+    label .ms, legend .ms { color: var(--muted); margin-right: 6px; }
+    h2 .ms { font-size: 24px; margin-right: 8px; vertical-align: -5px; }
+    .choice .ms { color: var(--muted); }
+    button .ms { margin-right: 6px; font-size: 20px; }
+    .intro { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; margin: 12px 0 0; }
+    .intro p { margin: 4px 0; }
   </style>
 </head>
 <body>
 <main>
   <h1>Overdub timing test</h1>
-  <p class="muted">About 3 minutes. Checks how well a new part lines up when you record it over an existing one. Nothing is uploaded.</p>
+  <div class="intro" id="intro">
+    <p>This test measures the delay between what you hear and what your phone records, on different devices and headphones. It helps us line up new recordings with existing ones.</p>
+    <p class="muted">It takes about 3 minutes. When you're done, please share your results with Daniel.</p>
+  </div>
 
   <!-- 1 · Setup -->
   <section class="card step" id="step-setup">
     <div class="progress">Step 1 of 5</div>
-    <h2>Your setup</h2>
+    <h2><span class="ms" aria-hidden="true">tune</span>Your setup</h2>
+    <p class="muted">Fill in your details, then choose how you're listening and which mic to record with.</p>
 
-    <label for="device">Device</label>
+    <label for="device"><span class="ms" aria-hidden="true">smartphone</span>Device</label>
     <input id="device" type="text" autocomplete="off" placeholder="e.g. iPhone 13" aria-describedby="device-help" />
     <div id="device-help" class="field-help"></div>
 
     <fieldset>
-      <legend>Listening on</legend>
+      <legend><span class="ms" aria-hidden="true">hearing</span>Listening on</legend>
       <div class="choices">
-        <label class="choice"><input type="radio" name="output" value="Bluetooth headphones" checked /> Bluetooth headphones</label>
-        <label class="choice"><input type="radio" name="output" value="Wired headphones" /> Wired headphones</label>
-        <label class="choice"><input type="radio" name="output" value="Speaker" /> Phone or laptop speaker</label>
+        <label class="choice"><input type="radio" name="output" value="Bluetooth headphones" checked /><span class="ms" aria-hidden="true">bluetooth</span> Bluetooth headphones</label>
+        <label class="choice"><input type="radio" name="output" value="Wired headphones" /><span class="ms" aria-hidden="true">cable</span> Wired headphones</label>
+        <label class="choice"><input type="radio" name="output" value="Speaker" /><span class="ms" aria-hidden="true">volume_up</span> Phone or laptop speaker</label>
       </div>
     </fieldset>
 
     <div id="headphones-field">
-      <label for="headphones">Headphones <span class="muted" style="font-weight:400">(optional)</span></label>
+      <label for="headphones"><span class="ms" aria-hidden="true">headphones</span>Headphones <span class="muted" style="font-weight:400">(optional)</span></label>
       <input id="headphones" type="text" autocomplete="off" placeholder="e.g. AirPods Pro" />
     </div>
 
+    <label for="mic"><span class="ms" aria-hidden="true">mic</span>Microphone</label>
+    <select id="mic"><option value="">Automatic (built-in mic)</option></select>
+    <div class="field-help" id="mic-help">Use your phone's built-in mic, not your headphones' mic. Your mics are listed after you press Start.</div>
+
     <details>
       <summary>Advanced</summary>
-      <label for="mic">Microphone</label>
-      <select id="mic"><option value="">Automatic</option></select>
-      <div class="field-help">Automatic picks your device's built-in mic where it can.</div>
-      <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation</span></label>
+      <label class="check"><input id="ec" type="checkbox" /> <span>Echo cancellation <span class="muted">(leave off unless asked)</span></span></label>
     </details>
 
-    <div class="row"><button id="start" class="primary">Start</button></div>
-    <div class="field-help">We'll ask to use your mic.</div>
+    <div class="row"><button id="start" class="primary"><span class="ms" aria-hidden="true">play_arrow</span>Start</button></div>
+    <div class="field-help">Your browser will ask to use the mic. Nothing is uploaded.</div>
     <div id="setup-status" class="status"></div>
   </section>
 
   <!-- 2 · Sound check -->
   <section class="card step" id="step-check" hidden>
     <div class="progress">Step 2 of 5</div>
-    <h2>Sound check</h2>
+    <h2><span class="ms" aria-hidden="true">graphic_eq</span>Sound check</h2>
     <p id="check-how"></p>
     <div class="row"><button id="run-check" class="primary">Play sound check</button></div>
     <div id="check-status" class="status"></div>
@@ -120,7 +135,7 @@
   <!-- 3 · Clap along -->
   <section class="card step" id="step-clap" hidden>
     <div class="progress">Step 3 of 5</div>
-    <h2>Clap along</h2>
+    <h2><span class="ms" aria-hidden="true">sign_language</span>Clap along</h2>
     <p id="clap-how"></p>
     <div class="row"><button id="run-clap" class="primary">Start beeps</button></div>
     <div id="clap-status" class="status"></div>
@@ -134,7 +149,7 @@
   <!-- 4 · Record -->
   <section class="card step" id="step-record" hidden>
     <div class="progress">Step 4 of 5</div>
-    <h2>Record a take</h2>
+    <h2><span class="ms" aria-hidden="true">radio_button_checked</span>Record a take</h2>
     <p id="record-how">You'll hear a 24-second drum beat. Play, sing or clap along.</p>
     <details id="own-track">
       <summary>Use your own track instead</summary>
@@ -148,9 +163,9 @@
   <!-- 5 · Line it up -->
   <section class="card step" id="step-align" hidden>
     <div class="progress">Step 5 of 5</div>
-    <h2>Line it up</h2>
+    <h2><span class="ms" aria-hidden="true">align_horizontal_center</span>Line it up</h2>
     <p>Press play, then move the slider until your take sits in time.</p>
-    <div class="row"><button id="play" class="dark">▶ Play</button></div>
+    <div class="row"><button id="play" class="dark">Play</button></div>
     <div class="shift"><span id="shift-value">0</span> ms</div>
     <div class="slider-row">
       <button id="minus" aria-label="5 ms earlier">−5</button>
@@ -168,7 +183,7 @@
 
   <!-- Done -->
   <section class="card step" id="step-done" hidden>
-    <h2>Saved. Thank you!</h2>
+    <h2><span class="ms" aria-hidden="true">check_circle</span>Saved. Thank you!</h2>
     <p id="done-summary"></p>
     <div class="scroll" id="done-table"></div>
     <p class="muted" id="again-hint" style="margin-top:14px">Next, test again. Disconnect and reconnect your headphones first, so we can see if the delay changes.</p>
@@ -176,16 +191,18 @@
       <button id="test-again" class="dark">Test again</button>
       <button id="change-setup">Change setup</button>
     </div>
-    <div class="row"><button id="share-done" class="primary" hidden>Share results</button></div>
+    <p style="margin-top:16px"><b>Please share your results with Daniel.</b> <span class="muted">Do it once you've finished all your tests.</span></p>
+    <div class="row"><button id="share-done" class="primary" hidden><span class="ms" aria-hidden="true">share</span>Share results with Daniel</button></div>
+    <div class="row"><button id="dl-done"><span class="ms" aria-hidden="true">download</span>Download results</button></div>
   </section>
 
   <!-- Results -->
   <details class="card" id="results">
-    <summary><b>Your results</b> <span id="results-count" class="muted"></span></summary>
+    <summary><b><span class="ms" aria-hidden="true">table_view</span>Your results</b> <span id="results-count" class="muted"></span></summary>
     <div class="row">
-      <button id="share-log" hidden>Share</button>
-      <button id="dl-log">Download CSV</button>
-      <button id="clear-log">Clear</button>
+      <button id="share-log" hidden><span class="ms" aria-hidden="true">share</span>Share with Daniel</button>
+      <button id="dl-log"><span class="ms" aria-hidden="true">download</span>Download</button>
+      <button id="clear-log"><span class="ms" aria-hidden="true">delete</span>Clear</button>
     </div>
     <div id="log-status" class="status"></div>
     <div id="log"></div>
